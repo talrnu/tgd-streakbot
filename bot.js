@@ -34,6 +34,11 @@ client.on('ready', () => {
 	//broadcastNewDay();
 });
 
+client.on('disconnect', (msg, code) => {
+    if (code === 0) return console.error(msg);
+    bot.connect();
+});
+
 client.on('message', message => {
 	if (channel && message.channel.name === channel.name && message.author.id !== client.user.id) {
 		console.log(`Processing message received from ${message.author.username}`);
@@ -41,7 +46,7 @@ client.on('message', message => {
 	}
 });
 
-client.login('NTY2NDM0NTgyNzc4NDc4NTkz.XLE8kQ.wKOMZTSEiBSzud_qsy7zklugzDU');
+client.login(process.env.BOT_SECRET);
 
 const broadcastNewDay = () => {
 	console.log('Announcing start of new day...');
