@@ -17,12 +17,10 @@ const ONE_DAY = new Date(1000 * 60 * 60 * 24);
 const dayStartHour = 8;
 const dayStartMinute = 10;
 
-const channelName = 'test';
-let channel = null;
+const channelName = 'daily-standup';
 
 client.on('ready', () => {
 	console.log(`Logged in as ${client.user.tag}`);
-	channel = client.channels.find(c => c.name === channelName);
 
 	schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${dayStartHour.toString().padStart(2, '0')} * * *`, () => {
 		broadcastNewDay();
@@ -41,6 +39,7 @@ client.on('disconnect', (msg, code) => {
 });
 
 client.on('message', message => {
+	const channel = client.channels.find(c => c.name === channelName);
 	if (channel && message.channel.name === channel.name && message.author.id !== client.user.id) {
 		console.log(`Processing message received from ${message.author.username}`);
 		processMessageForStreak(message);
@@ -50,6 +49,7 @@ client.on('message', message => {
 client.login(process.env.BOT_SECRET);
 
 const broadcastNewDay = () => {
+	const channel = client.channels.find(c => c.name === channelName);
 	console.log('Announcing start of new day...');
 	const announcement = `Good morning and welcome to the ${channelName} channel! Check the pinned messages for a full introduction.\n` +
 						`Let the new day begin! Post your standup to start or continue your daily streak.${getUsersWhoPostedYesterday()}`;
@@ -57,6 +57,7 @@ const broadcastNewDay = () => {
 };
 
 const broadcastReminder = () => {
+	const channel = client.channels.find(c => c.name === channelName);
 	const announcement = `The day is half done! Don't forget to post an update for the day, even a quick note about what you plan to do tomorrow is good.${getUsersWhoPostedYesterday()}`;
 	channel.send(announcement);
 };
