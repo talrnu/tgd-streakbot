@@ -1,3 +1,4 @@
+require('dotenv').config();
 const Discord = require('discord.js');
 const client = new Discord.Client();
 const schedule = require('node-schedule');
@@ -36,7 +37,7 @@ client.on('ready', () => {
 
 client.on('disconnect', (msg, code) => {
     if (code === 0) return console.error(msg);
-    bot.connect();
+    client.connect();
 });
 
 client.on('message', message => {
