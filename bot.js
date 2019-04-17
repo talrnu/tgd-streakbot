@@ -14,8 +14,8 @@ db.defaults({
 	.write();
 
 const ONE_DAY = new Date(1000 * 60 * 60 * 24);
-const dayStartHour = 8;
-const dayStartMinute = 10;
+const dayStartHour = 6;
+const dayStartMinute = 0;
 
 const channelName = 'daily-standup';
 
@@ -80,7 +80,6 @@ const processMessageForStreak = msg => {
 	if (userStreakNotAlreadyUpdatedToday(dbUser)) {
 		console.log('\tUpdating streak...');
 		addToStreak(msg, dbUser);
-		msg.react('⭐');
 	}
 	else {
 		console.log(`Extraneous message posted to ${msg.channel.name} by ${msg.author.username} (${msg.author.tag}) at ${new Date().toISOString()}`);
@@ -146,8 +145,14 @@ const addToStreak = (msg, dbUser) => {
 		bestStreak: 1,
 		lastUpdate: new Date(),
 	};
+	let isNewBest = true;
 	if (!dbUser.value().streak) {
-		console.log(`${msg.author.username} started a streak`);
+		console.log(`${msg.author.username} started their first streak`);
+	}
+	else if (!userStreakLastUpdatedYesterday(dbUser)) {
+		streakData.bestStreak = dbUser.value().bestStreak;
+		isNewBest = false;
+		console.log(`${msg.author.username} started a new streak`);
 	}
 	else {
 		const newLevel = dbUser.value().streak + 1;
@@ -158,6 +163,15 @@ const addToStreak = (msg, dbUser) => {
 		if (newLevel > currentBest) {
 			console.log(`\t...and it's a new best! (${newLevel})`);
 		}
+		else {
+			isNewBest = false;
+		}
+	}
+	if (isNewBest) {
+		msg.react('🌟');
+	}
+	else {
+		msg.react('⭐');
 	}
 	dbUser.assign(streakData).write();
 };
