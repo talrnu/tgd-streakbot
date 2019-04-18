@@ -14,7 +14,8 @@ db.defaults({
 	.write();
 
 const ONE_DAY = new Date(1000 * 60 * 60 * 24);
-const dayStartHour = 6;
+// UTC time (no offset):
+const dayStartHour = 13;
 const dayStartMinute = 0;
 
 const channelName = 'daily-standup';
@@ -128,7 +129,7 @@ const userStreakLastUpdatedYesterday = user => {
 };
 
 const getMostRecentDayStart = () => {
-	const mostRecentDayStart = new Date();
+	const mostRecentDayStart = new Date(Date.now());
 	if (mostRecentDayStart.getHours() < dayStartHour ||
 		(mostRecentDayStart.getHours() == dayStartHour && mostRecentDayStart.getMinutes() < dayStartMinute)) {
 		// It's the next calendar day, but the streak day hasn't started yet, so subtract 24h to get the correct date
@@ -153,6 +154,7 @@ const addToStreak = (msg, dbUser) => {
 		streakData.bestStreak = dbUser.value().bestStreak;
 		isNewBest = false;
 		console.log(`${msg.author.username} started a new streak`);
+		msg.react('☄');
 	}
 	else {
 		const newLevel = dbUser.value().streak + 1;
