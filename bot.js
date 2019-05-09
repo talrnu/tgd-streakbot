@@ -20,24 +20,61 @@ const dayStartMinute = 0;
 
 const channelName = 'daily-standup';
 
+let dayStartJob;
+let reminderJob;
+let reconnectJob;
+let midweekJob;
+
+console.log('Starting up...');
 client.on('ready', () => {
-	console.log(`Logged in as ${client.user.tag}`);
+	console.log(`Logged in as ${client.user.tag} - ${new Date().toUTCString()}`);
 
-	schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${dayStartHour.toString().padStart(2, '0')} * * *`, () => {
-		broadcastNewDay();
-	});
-
-	schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${((dayStartHour + 12) % 24).toString().padStart(2, '0')} * * *`, () => {
-		broadcastReminder();
-	});
+	if (!dayStartJob) {
+		console.log('Scheduling day start job...');
+		dayStartJob = schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${dayStartHour.toString().padStart(2, '0')} * * *`, () => {
+			console.log('Broadcasting day start...');
+			broadcastNewDay();
+		});
+	}
+	if (!reminderJob) {
+		console.log('Scheduling reminder job...');
+		reminderJob = schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${((dayStartHour + 12) % 24).toString().padStart(2, '0')} * * *`, () => {
+			console.log('Broadcasing reminder...');
+			broadcastReminder();
+		});
+	}
+	if (!reconnectJob) {
+		console.log('Scheduling reconnect job...');
+		reconnectJob = schedule.scheduleJob('00 05 * * * *', () => {
+			console.log('Performing scheduled reconnect...');
+			disconnect();
+		});
+	}
+	if (!midweekJob) {
+		console.log('Scheduling midweek job...');
+		midweekJob = schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${((dayStartHour + 6) % 24).toString().padStart(2, '0')} * * 3`, () => {
+			console.log('Broadcasing midweek summary...');
+			broadcastSummary();
+		});
+	}
 
 	//broadcastNewDay();
+	console.log('Client startup complete.');
 });
+console.log('client ready event configured');
+
+client.on('error', error => {
+	console.error(error);
+});
+console.log('client error event configured');
 
 client.on('disconnect', (msg, code) => {
     if (code === 0) return console.error(msg);
-    client.connect();
+	console.log('Graceful disconnect occurred.');
+    disconnectCleanup();
+	connect();
 });
+console.log('client disconnect event configured');
 
 client.on('message', message => {
 	const channel = client.channels.find(c => c.name === channelName);
@@ -46,8 +83,30 @@ client.on('message', message => {
 		processMessageForStreak(message);
 	}
 });
+console.log('client message event configured');
 
-client.login(process.env.BOT_SECRET);
+const disconnectCleanup = () => {
+	console.log('Cleaning up after disconnect...');
+	dayStartJob.cancel();
+	dayStartJob = null;
+	reminderJob.cancel();
+	reminderJob = null;
+	reconnectJob.cancel();
+	reconnectJob = null;
+};
+
+const disconnect = () => {
+	console.log('Disconnecting...');
+	client.destroy();
+};
+
+const connect = () => {
+	console.log('Connecting...');
+	client.login(process.env.BOT_SECRET);
+};
+
+connect();
+console.log('initial connection established');
 
 const broadcastNewDay = () => {
 	const channel = client.channels.find(c => c.name === channelName);
@@ -59,13 +118,24 @@ const broadcastNewDay = () => {
 
 const broadcastReminder = () => {
 	const channel = client.channels.find(c => c.name === channelName);
-	const announcement = `The day is half done! Don't forget to post an update for the day, even a quick note about what you plan to do tomorrow is good.${getUsersWhoPostedYesterday()}`;
+	console.log('Announcing mid-day reminder...');
+	const announcement = `The day is half done! Don't forget to post an update for the day, even a quick note about what you plan to do tomorrow is good.${getUsersWhoCouldLoseTheirStreak()}`;
+	channel.send(announcement);
+};
+
+const broadcastSummary = () => {
+	const channel = client.channels.find(c => c.name === channelName);
+	console.log('Announcing mid-week summary...');
+	const announcement = `We're halfway through the week! Time for a weekly summary.${getUsersWhoPostedInThePastWeek()}`;
 	channel.send(announcement);
 };
 
 const getUsersWhoPostedYesterday = () => {
+	console.log('getUsersWhoPostedYesterday()');
 	let listText = '';
-	const activeStreakUsers = db.get('users').value().filter(user => userStreakLastUpdatedYesterday(user));
+	const users = db.get('users').value();
+	//console.log(`users: ${JSON.stringify(users)}`);
+	const activeStreakUsers = users.filter(userStreakLastUpdatedYesterday);
 	if (activeStreakUsers.length > 0) {
 		listText += '\nCurrent running streaks:';
 		activeStreakUsers.forEach(user => {
@@ -76,9 +146,45 @@ const getUsersWhoPostedYesterday = () => {
 	return listText;
 };
 
+const getUsersWhoCouldLoseTheirStreak = () => {
+	console.log('getUsersWhoCouldLoseTheirStreak()');
+	let listText = '';
+	const users = db.get('users').value();
+	//console.log(`users: ${JSON.stringify(users)}`);
+	const atRiskUsers = users.filter(userStreakStillNeedsUpdatingToday);
+	if (atRiskUsers.length > 0) {
+		listText += '\nThese users still need to post today if they want to keep their current streak alive:';
+		atRiskUsers.forEach(user => {
+			const username = (user.mentionsEnabled) ? client.users.find(u => u.id === user.userID) : user.username;
+			listText += `\n\t${username}: ${user.streak} (best: ${user.bestStreak})`;
+		});
+	}
+	return listText;
+};
+
+const getUsersWhoPostedInThePastWeek = () => {
+	console.log('getUsersWhoPostedInThePastWeek()');
+	let listText = '';
+	const users = db.get('users').value();
+	//console.log(`users: ${JSON.stringify(users)}`);
+	const pastWeekUsers = users.filter(userStreakUpdatedInPastWeek);
+	if (pastWeekUsers.length > 0) {
+		listText += '\nUsers who have posted in the past week:';
+		pastWeekUsers.forEach(user => {
+			listText += `\n\t${user.username} (best streak: ${user.bestStreak})`;
+		});
+		listText += '\nKeep up the good work!';
+	}
+	else {
+		listText = '\nNo users have posted in the past week! I\'ll have an existential meltdown now.';
+	}
+	return listText;
+};
+
+
 const processMessageForStreak = msg => {
 	const dbUser = getOrCreateDBUser(msg);
-	if (userStreakNotAlreadyUpdatedToday(dbUser)) {
+	if (userStreakNotAlreadyUpdatedToday(dbUser.value())) {
 		console.log('\tUpdating streak...');
 		addToStreak(msg, dbUser);
 	}
@@ -111,29 +217,55 @@ const getOrCreateDBUser = msg => {
 	return dbUser;
 };
 
-const userStreakNotAlreadyUpdatedToday = dbUser => {
-	if (!dbUser.value().streak) {
+const userStreakNotAlreadyUpdatedToday = user => {
+	console.log(`userStreakNotAlreadyUpdatedToday(${user.username})`);
+	if (!user.streak) {
 		console.log('\tThis user is starting their first streak');
 		return true;
 	}
 	const mostRecentDayStart = getMostRecentDayStart();
-	const userLastUpdate = new Date(dbUser.value().lastUpdate);
-	console.log(`\tMost recent day start: ${mostRecentDayStart.toISOString()}, user last update: ${userLastUpdate.toISOString()}`);
+	const userLastUpdate = new Date(user.lastUpdate);
+	console.log(`\tMost recent day start: ${mostRecentDayStart.toUTCString()}, user last update: ${userLastUpdate.toUTCString()}`);
 	return (userLastUpdate < mostRecentDayStart);
 };
 
 const userStreakLastUpdatedYesterday = user => {
+	console.log(`userStreakLastUpdatedYesterday(${user.username})`);
+	if (!user.lastUpdate) {
+		console.log('\tUser\'s first streak! No last update date.');
+		return false;
+	}
 	const mostRecentDayStart = getMostRecentDayStart();
-	const timeBeforeDayStart = mostRecentDayStart - user.lastUpdate;
-	return (timeBeforeDayStart > 0 && timeBeforeDayStart < ONE_DAY);
+	const userLastUpdate = new Date(user.lastUpdate);
+	const timeBeforeDayStart = mostRecentDayStart.getTime() - userLastUpdate.getTime();
+	console.log(`\tMost recent day start: ${mostRecentDayStart.toUTCString()};`);
+	console.log(`\tuser last update: ${userLastUpdate.toUTCString()};`);
+	console.log(`\ttime between last update and most recent day start: ${timeBeforeDayStart};`);
+	console.log(`\tOne day is ${ONE_DAY};`);
+	const didLastUpdateYesterday = (timeBeforeDayStart > 0 && timeBeforeDayStart < ONE_DAY);
+	console.log(`\tResult: ${didLastUpdateYesterday}`);
+	return didLastUpdateYesterday;
+};
+
+const userStreakStillNeedsUpdatingToday = user => {
+	return userStreakLastUpdatedYesterday(user) && userStreakNotAlreadyUpdatedToday(user);
+};
+
+const userStreakUpdatedInPastWeek = user => {
+	const userLastUpdate = new Date(user.lastUpdate);
+	const timeSinceLastUpdate = new Date() - userLastUpdate;
+	return (timeSinceLastUpdate < (7 * ONE_DAY));
 };
 
 const getMostRecentDayStart = () => {
-	const mostRecentDayStart = new Date(Date.now());
+	console.log('getMostRecentDayStart()');
+	const now = new Date(Date.now());
+	console.log(`current time is ${now.toUTCString()}; day starts at ${dayStartHour}:${dayStartMinute}`);
+	const mostRecentDayStart = now;
 	if (mostRecentDayStart.getHours() < dayStartHour ||
 		(mostRecentDayStart.getHours() == dayStartHour && mostRecentDayStart.getMinutes() < dayStartMinute)) {
 		// It's the next calendar day, but the streak day hasn't started yet, so subtract 24h to get the correct date
-		console.log(`\tAdjusting for the wee hours (current date: ${new Date().toUTCString()}, streak day start time: ${dayStartHour}:${dayStartMinute})`);
+		console.log('\tAdjusting for the wee hours...');
 		mostRecentDayStart.setDate(mostRecentDayStart.getDate() - 1);
 	}
 	mostRecentDayStart.setHours(dayStartHour, dayStartMinute, 0, 0);
@@ -147,18 +279,21 @@ const addToStreak = (msg, dbUser) => {
 		lastUpdate: new Date(),
 	};
 	let isNewBest = true;
-	if (!dbUser.value().streak) {
+	let isNewStreak = false;
+	const user = dbUser.value();
+	if (!user.bestStreak) {
 		console.log(`${msg.author.username} started their first streak`);
+		isNewStreak = true;
 	}
-	else if (!userStreakLastUpdatedYesterday(dbUser)) {
-		streakData.bestStreak = dbUser.value().bestStreak;
-		isNewBest = false;
+	else if (!userStreakLastUpdatedYesterday(user)) {
 		console.log(`${msg.author.username} started a new streak`);
-		msg.react('☄');
+		isNewStreak = true;
+		streakData.bestStreak = user.bestStreak;
+		isNewBest = false;
 	}
 	else {
-		const newLevel = dbUser.value().streak + 1;
-		const currentBest = dbUser.value().bestStreak;
+		const newLevel = user.streak + 1;
+		const currentBest = user.bestStreak;
 		streakData.streak = newLevel;
 		streakData.bestStreak = Math.max(newLevel, currentBest);
 		console.log(`${msg.author.username} continued a streak to ${newLevel}`);
@@ -168,6 +303,9 @@ const addToStreak = (msg, dbUser) => {
 		else {
 			isNewBest = false;
 		}
+	}
+	if (isNewStreak) {
+		msg.react('☄');
 	}
 	if (isNewBest) {
 		msg.react('🌟');
