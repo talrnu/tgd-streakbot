@@ -1,6 +1,7 @@
 To run this bot:
 
-1. Ensure the bot "user account" is added to your Discord server.
+1. Create an app and a bot in the [Discord Developer Portal](https://discord.com/developers/applications)
+1. Ensure the bot "user account" is [added to your Discord server](https://discord.com/developers/docs/topics/oauth2#bots).
 2. Install NodeJS.
 3. Download this repo.
 4. Create a file in the directory you downloaded the repo to. Name the file ".env" (nothing before the dot).
