@@ -1,15 +1,40 @@
-To run this bot:
+### To run this bot:
 
-1. Create an app and a bot in the [Discord Developer Portal](https://discord.com/developers/applications)
+1. Create an app and a bot in the [Discord Developer Portal](https://discord.com/developers/applications).
 1. Ensure the bot "user account" is [added to your Discord server](https://discord.com/developers/docs/topics/oauth2#bots).
 2. Install NodeJS.
 3. Download this repo.
-4. Create a file in the directory you downloaded the repo to. Name the file ".env" (nothing before the dot).
-5. Edit the new file in a text editor like notepad. Write "BOT_SECRET=[bot token]", replacing [bot token] with the bot's secret token copied from the Discord dev portal.
-6. Save and close the .env file.
-7. Navigate a command prompt to the directory you downloaded the repo to.
-8. Run the command: "npm install" (no quotes)
-9. Run the command: "node ." (no quotes)
+4. Create a text file named `.env` _(literally `.env` nothing before the dot)_ 
+   in the root directory of the downloaded `tgd-streakbot` repo.
+5. Edit the `.env` file in a plain-text editor like notepad.
+   At minimum write `BOT_SECRET=[bot token]`, replacing [bot token] with the bot's secret token copied from the Discord dev portal.
+
+   Example `.env` contents:
+   ```shell
+   # REQUIRED CONFIG
+   BOT_SECRET=****************************
+
+   # OPTIONAL CONFIG
+   channelName=daily-standup
+
+   dayStartHour=0
+   dayStartMinute=0
+
+   morningAnnouncementHour=7
+   morningAnnouncementMinute=0
+
+   midDayReminderHour=12
+   midDayReminderMinute=0
+
+   midWeekSummaryHour=13
+   midWeekSummaryMinute=0
+
+   midWeekDayOfWeek=3
+   ```
+6. Save and close the `.env` file.
+7. Navigate a command prompt to the root directory of the downloaded `tgd-streakbot` repo.
+8. Run the command: `npm install`
+9. Run the command: `node .`
 10. The command prompt should say "Logged in as TGD StreakBot". The bot should appear in the server's user list as online.
 11. Leave the command prompt open for as long as you want the bot to run.
 

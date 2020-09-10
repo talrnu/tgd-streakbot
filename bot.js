@@ -15,14 +15,26 @@ db.defaults({
 	.write();
 
 const ONE_DAY = new Date(1000 * 60 * 60 * 24);
-// UTC time (no offset):
-const dayStartHour = 13;
-const dayStartMinute = 0;
 
-const channelName = 'daily-standup';
+const dayStartHour = process.env.dayStartHour ? parseInt(process.env.dayStartHour) : 0;
+const dayStartMinute = process.env.dayStartMinute ? parseInt(process.env.dayStartMinute) : 0;
+
+const morningAnnouncementHour = process.env.morningAnnouncementHour ? parseInt(process.env.morningAnnouncementHour) : 7;
+const morningAnnouncementMinute = process.env.morningAnnouncementMinute ? parseInt(process.env.morningAnnouncementMinute) : 0;
+
+const midDayReminderHour = process.env.midDayReminderHour ? parseInt(process.env.midDayReminderHour) : 12;
+const midDayReminderMinute = process.env.midDayReminderMinute ? parseInt(process.env.midDayReminderMinute) : 0;
+
+const midWeekSummaryHour = process.env.midWeekSummaryHour ? parseInt(process.env.midWeekSummaryHour) : 13;
+const midWeekSummaryMinute = process.env.midWeekSummaryMinute ? parseInt(process.env.midWeekSummaryMinute) : 0;
+
+const midWeekDayOfWeek = process.env.midWeekDayOfWeek ? parseInt(process.env.midWeekDayOfWeek) : 3;
+
+const channelName = process.env.channelName || 'daily-standup';
 
 let dayStartJob;
-let reminderJob;
+let morningAnnouncementJob;
+let midDayReminderJob;
 let reconnectJob;
 let midweekJob;
 
@@ -33,15 +45,22 @@ client.on('ready', () => {
 	if (!dayStartJob) {
 		console.log('Scheduling day start job...');
 		dayStartJob = schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${dayStartHour.toString().padStart(2, '0')} * * *`, () => {
-			console.log('Broadcasting day start...');
+			console.log('Starting new day...');
 			broadcastNewDay();
 		});
 	}
-	if (!reminderJob) {
+	if (!morningAnnouncementJob) {
+		console.log('Scheduling day start job...');
+		morningAnnouncementJob = schedule.scheduleJob(`00 ${morningAnnouncementMinute.toString().padStart(2, '0')} ${morningAnnouncementHour.toString().padStart(2, '0')} * * *`, () => {
+			console.log('Broadcasting morning announcement...');
+			broadcastMorningAnnouncement();
+		});
+	}
+	if (!midDayReminderJob) {
 		console.log('Scheduling reminder job...');
-		reminderJob = schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${((dayStartHour + 12) % 24).toString().padStart(2, '0')} * * *`, () => {
+		midDayReminderJob = schedule.scheduleJob(`00 ${midDayReminderMinute.toString().padStart(2, '0')} ${midDayReminderHour.toString().padStart(2, '0')} * * *`, () => {
 			console.log('Broadcasing reminder...');
-			broadcastReminder();
+			broadcastMidDayReminder();
 		});
 	}
 	if (!reconnectJob) {
@@ -53,13 +72,13 @@ client.on('ready', () => {
 	}
 	if (!midweekJob) {
 		console.log('Scheduling midweek job...');
-		midweekJob = schedule.scheduleJob(`00 ${dayStartMinute.toString().padStart(2, '0')} ${((dayStartHour + 6) % 24).toString().padStart(2, '0')} * * 3`, () => {
+		midweekJob = schedule.scheduleJob(`00 ${midWeekSummaryMinute.toString().padStart(2, '0')} ${midWeekSummaryHour.toString().padStart(2, '0')} * * ${midWeekDayOfWeek}`, () => {
 			console.log('Broadcasing midweek summary...');
 			broadcastSummary();
 		});
 	}
 
-	//broadcastNewDay();
+	// broadcastMorningAnnouncement();
 	console.log('Client startup complete.');
 });
 console.log('client ready event configured');
@@ -70,9 +89,9 @@ client.on('error', error => {
 console.log('client error event configured');
 
 client.on('disconnect', (msg, code) => {
-    if (code === 0) return console.error(msg);
+		if (code === 0) return console.error(msg);
 	console.log('Graceful disconnect occurred.');
-    disconnectCleanup();
+		disconnectCleanup();
 	connect();
 });
 console.log('client disconnect event configured');
@@ -90,8 +109,8 @@ const disconnectCleanup = () => {
 	console.log('Cleaning up after disconnect...');
 	dayStartJob.cancel();
 	dayStartJob = null;
-	reminderJob.cancel();
-	reminderJob = null;
+	midDayReminderJob.cancel();
+	midDayReminderJob = null;
 	reconnectJob.cancel();
 	reconnectJob = null;
 };
@@ -111,13 +130,18 @@ console.log('initial connection established');
 
 const broadcastNewDay = () => {
 	const channel = client.channels.find(c => c.name === channelName);
-	console.log('Announcing start of new day...');
+	console.log('Start of new day (no announcement in channel)...');
+};
+
+broadcastMorningAnnouncement = () => {
+	const channel = client.channels.find(c => c.name === channelName);
+	console.log('Announcing morning streak...');
 	const announcement = `Good morning and welcome to the ${channelName} channel! Check the pinned messages for a full introduction.\n` +
 						`Let the new day begin! Post your standup to start or continue your daily streak.${getUsersWhoPostedYesterday()}`;
 	channel.send(announcement);
 };
 
-const broadcastReminder = () => {
+const broadcastMidDayReminder = () => {
 	const channel = client.channels.find(c => c.name === channelName);
 	console.log('Announcing mid-day reminder...');
 	const announcement = `The day is half done! Don't forget to post an update for the day, even a quick note about what you plan to do tomorrow is good.${getUsersWhoCouldLoseTheirStreak()}`;
