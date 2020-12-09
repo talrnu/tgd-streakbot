@@ -80,21 +80,6 @@ client.on('ready', () => {
 
 	// broadcastMorningAnnouncement();
 	console.log('Client startup complete.');
-
-
-
-
-
-
-
-	console.log('getUsersWhoCouldLoseTheirStreak debug', getUsersWhoCouldLoseTheirStreak());
-
-
-
-
-
-
-
 });
 console.log('client ready event configured');
 
